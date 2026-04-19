@@ -1,0 +1,778 @@
+openapi: 3.1.0
+info:
+  title: Starfagrunnur API
+  description: |
+    Open Icelandic occupational knowledge graph. Combines ÍSTARF21 (the Icelandic
+    ISCO-08 adaptation) categorisation with ESCO occupations and skills.
+
+    **Data model** (see the graph for the full picture):
+    ```
+    (OccupationGroup) -[:CHILD_OF]-> (OccupationGroup)     # 4-level ÍSTARF21 hierarchy
+    (EscoOccupation) -[:BELONGS_TO_GROUP]-> (OccupationGroup)
+    (EscoOccupation) -[:REQUIRES_SKILL {relationType}]-> (Skill)
+    (AliasTerm) -[:ALIAS_OF]-> (EscoOccupation)
+    ```
+
+    **ÍSTARF21 levels**:
+    - Level 1 – bálkur (major group, 1-digit) — 9 categories
+    - Level 2 – deild (sub-major, 2-digit) — 39 categories
+    - Level 3 – klasi (minor, 3-digit) — 121 categories
+    - Level 4 – starfaflokkur (unit, 4-digit) — 409 categories; this is where ESCO roles attach and tasks live
+
+    **Skill classification (ESCO semantics)**:
+    - `relationType: essential` — typical for the occupation across the European labour market
+    - `relationType: optional` — may be required depending on specialisation/context
+    - `skillType: skill/competence` — doing skills
+    - `skillType: knowledge` — knowing things
+
+    All labels are in Icelandic (is-IS).
+  version: "1.0.0"
+  contact:
+    name: Peritus
+    url: https://starfagrunnur.is
+servers:
+  - url: /
+    description: Current host (the origin serving this documentation)
+  - url: https://starfagrunnur.is
+    description: Production
+  - url: https://api.starfagrunnur.is
+    description: API alias
+
+tags:
+  - name: Search
+    description: Cross-source search across ÍSTARF21 and ESCO
+  - name: Occupations
+    description: ÍSTARF21 occupation groups — the 4-level ISCO-08 hierarchy
+  - name: ESCO
+    description: ESCO occupations — concrete job role labels
+  - name: Skills
+    description: ESCO skills — competencies and knowledge attached to occupations
+
+paths:
+  /api/v1/search:
+    get:
+      tags: [Search]
+      summary: Search occupations
+      description: |
+        Full-text search with fuzzy + wildcard matching, resolving hits from
+        four sources: exact ÍSTARF21 code, ÍSTARF21 category titles, ESCO
+        occupation labels, and alias terms.
+
+        Results are ordered: ESCO role hits first, then ÍSTARF21 categories.
+        Each result carries a `result_type` telling clients what it is.
+
+        **Answers questions like:**
+        - "I know what I'm looking for — where is it in the dataset?"
+        - "Does this database have anything about *vefhönnun*?"
+        - "What's the ÍSTARF code for *hjúkrunarfræðingur*?"
+        - "Find occupations related to *'nurse'* (even if user types English/alternate form)."
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema: { type: string, minLength: 2 }
+          description: Search query (minimum 2 characters).
+          example: hjúkrunarfræðingur
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query: { type: string }
+                  total: { type: integer }
+                  results:
+                    type: array
+                    items: { $ref: "#/components/schemas/SearchResult" }
+
+  /api/v1/occupations:
+    get:
+      tags: [Occupations]
+      summary: List ÍSTARF21 occupation groups
+      description: |
+        Browse/list groups. Filter by level and/or parent code. Paginated.
+
+        **Answers questions like:**
+        - "What are the top-level occupation categories in Iceland?" → `?level=1`
+        - "List every starfaflokkur (level-4 unit)." → `?level=4`
+        - "Which subcategories live directly under bálkur 2?" → `?parent=2`
+        - "I want to build a category browser / dropdown."
+      parameters:
+        - in: query
+          name: level
+          schema: { type: integer, enum: [1, 2, 3, 4] }
+          description: Filter by hierarchy level.
+        - in: query
+          name: parent
+          schema: { type: string, pattern: "^\\d{1,4}$" }
+          description: Return only direct children of this parent code.
+        - in: query
+          name: limit
+          schema: { type: integer, default: 100, maximum: 1000 }
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0 }
+      responses:
+        "200":
+          description: Paginated list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total: { type: integer }
+                  limit: { type: integer }
+                  offset: { type: integer }
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/OccupationSummary" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/occupations/{code}:
+    get:
+      tags: [Occupations]
+      summary: Get an ÍSTARF21 occupation group
+      description: |
+        Full detail for a single group: title, description, tasks (level-4 only), parent.
+        Tasks appear at level-4 unit groups only (by ÍSTARF21 design). Levels 1–3 are
+        aggregated categories and their `tasks` will be `null`.
+
+        **Answers questions like:**
+        - "What is occupation 2221 about?"
+        - "Give me the official tasks and description for this ÍSTARF code."
+        - "What category does 2221 sit directly under?" (via `parent`)
+      parameters:
+        - $ref: "#/components/parameters/Code"
+      responses:
+        "200":
+          description: Occupation group detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OccupationDetail" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/occupations/{code}/ancestors:
+    get:
+      tags: [Occupations]
+      summary: Ancestor chain
+      description: |
+        Walks CHILD_OF upward from this group to the root bálkur. Ordered closest-first.
+
+        **Answers questions like:**
+        - "Which bálkur does this occupation belong to?"
+        - "Show me the full classification path above code 2221."
+        - "I need breadcrumbs from this node to the top."
+      parameters:
+        - $ref: "#/components/parameters/Code"
+      responses:
+        "200":
+          description: Ancestor list (closest first)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OccupationSummary" }
+
+  /api/v1/occupations/{code}/children:
+    get:
+      tags: [Occupations]
+      summary: Direct children
+      description: |
+        Direct children only (one level down).
+
+        **Answers questions like:**
+        - "What sits one step below bálkur 2?" (returns deildir 21, 22, 23...)
+        - "I'm drilling down through the hierarchy one level at a time."
+        - Use `/descendants` instead if you want everything below, any depth.
+      parameters:
+        - $ref: "#/components/parameters/Code"
+      responses:
+        "200":
+          description: Direct children
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OccupationSummary" }
+
+  /api/v1/occupations/{code}/descendants:
+    get:
+      tags: [Occupations]
+      summary: All descendants
+      description: |
+        All descendants of this group, optionally filtered to a specific level.
+
+        **Answers questions like:**
+        - "List every starfaflokkur (level 4) under bálkur 2." → `?level=4`
+        - "Give me the whole subtree below this klasi."
+        - "How many level-4 units live under *Sérfræðistörf*?"
+      parameters:
+        - $ref: "#/components/parameters/Code"
+        - in: query
+          name: level
+          schema: { type: integer, enum: [2, 3, 4] }
+          description: Return only descendants at this level.
+      responses:
+        "200":
+          description: Descendants
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OccupationSummary" }
+
+  /api/v1/occupations/{code}/related:
+    get:
+      tags: [Occupations]
+      summary: Related groups
+      description: |
+        Groups connected via RELATED_TO (editorial cross-references in ÍSTARF21).
+
+        **Answers questions like:**
+        - "Are there categories ÍSTARF21 itself points to as related?"
+        - "What's semantically nearby this classification bucket?"
+        - Note: this reflects official ÍSTARF21 cross-references, not skill-overlap similarity.
+      parameters:
+        - $ref: "#/components/parameters/Code"
+      responses:
+        "200":
+          description: Related groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OccupationSummary" }
+
+  /api/v1/occupations/{code}/esco:
+    get:
+      tags: [Occupations]
+      summary: ESCO occupations under this group
+      description: |
+        ESCO roles belonging to this ÍSTARF21 group.
+
+        - Without `recursive`: only roles attached directly (non-empty on level-4 groups).
+        - With `recursive=true`: walks down to every level-4 descendant and unions their
+          ESCO roles. Use this to get "all roles under *Sérfræðistörf*" from bálkur code `2`.
+
+        **Answers questions like:**
+        - "Which concrete job titles live under ÍSTARF category 2221?" (level 4)
+        - "Give me every ESCO role under the healthcare bálkur 2." → `?recursive=true`
+        - "What are the actual job names a person can have inside this category?"
+        - ÍSTARF categorises; ESCO names the roles — this endpoint bridges the two.
+      parameters:
+        - $ref: "#/components/parameters/Code"
+        - in: query
+          name: recursive
+          schema: { type: boolean, default: false }
+          description: Include ESCO roles from descendant level-4 groups.
+      responses:
+        "200":
+          description: ESCO occupations in/under the group
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: "#/components/schemas/EscoOccupationSummary"
+                    - type: object
+                      properties:
+                        group_code:
+                          type: string
+                          description: Only present when recursive=true — the level-4 group the role attaches to.
+                        group_title:
+                          type: string
+                          description: Only present when recursive=true.
+
+  /api/v1/occupations/{code}/skills:
+    get:
+      tags: [Occupations]
+      summary: Skills via this group
+      description: |
+        Skills required by ESCO occupations under this group. Joined via
+        (Group)<-[:BELONGS_TO_GROUP]-(Esco)-[:REQUIRES_SKILL]->(Skill).
+
+        By default returns the union across all ESCO roles in the group. Pass
+        `occupation=<label>` to filter to one specific ESCO role.
+
+        **Answers questions like:**
+        - "What skills does a nurse category (2221) need?"
+        - "Show me only *essential* skills for this category." → `?relation_type=essential`
+        - "Only list knowledge-type skills, not competencies." → `?skill_type=knowledge`
+        - "Show skills *just* for 'hjúkrunarfræðingur', not the whole group." → `?occupation=hjúkrunarfræðingur`
+        - For single-ESCO-role queries, `/esco-occupations/{uuid}/skills` is often cleaner (UUID-keyed, no encoding of Icelandic labels).
+      parameters:
+        - $ref: "#/components/parameters/Code"
+        - in: query
+          name: relation_type
+          schema: { type: string, enum: [essential, optional] }
+        - in: query
+          name: skill_type
+          schema: { type: string, enum: ["skill/competence", "knowledge"] }
+        - in: query
+          name: occupation
+          schema: { type: string }
+          description: Filter to skills required by this specific ESCO occupation label (e.g. "hjúkrunarfræðingur").
+        - in: query
+          name: page
+          schema: { type: integer, default: 1, minimum: 1 }
+        - in: query
+          name: page_size
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        "200":
+          description: Paginated skills
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SkillsResponse" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/esco-occupations:
+    get:
+      tags: [ESCO]
+      summary: List ESCO occupations
+      description: |
+        Enumerate / search ESCO occupations. Without `q`, returns all occupations
+        sorted alphabetically (filterable, paginated). With `q`, returns the
+        top-ranked full-text matches.
+
+        **Answers questions like:**
+        - "List every ESCO role in ISCO-08 group 2221." → `?isco_group=2221`
+        - "Find ESCO roles matching *hjúkr*." → `?q=hjúkr`
+        - "Give me all roles under the healthcare bálkur." → `?in_istarf21=2`
+        - "Enumerate all 3,039 ESCO occupations (paginated)." → no params, paginate with `offset`
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string, minLength: 2 }
+          description: Full-text search over Icelandic labels.
+        - in: query
+          name: isco_group
+          schema: { type: string, pattern: "^\\d{1,4}$" }
+          description: Filter by ISCO-08 group (e.g. 2221).
+        - in: query
+          name: in_istarf21
+          schema: { type: string, pattern: "^\\d{1,4}$" }
+          description: Filter to ESCO roles under this ÍSTARF21 code or any of its descendants.
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, maximum: 200 }
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0 }
+      responses:
+        "200":
+          description: List of ESCO occupations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total: { type: integer }
+                  limit: { type: integer }
+                  offset: { type: integer }
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        uuid: { type: string }
+                        conceptUri: { type: string }
+                        preferredLabel_is: { type: string }
+                        description_is: { type: [string, "null"] }
+                        iscoGroup: { type: string }
+                        group_code: { type: [string, "null"] }
+                        group_title: { type: [string, "null"] }
+
+  /api/v1/esco-occupations/{uuid}:
+    get:
+      tags: [ESCO]
+      summary: Get an ESCO occupation
+      description: |
+        Full detail for a single ESCO occupation: description, ISCO-08 group,
+        alias labels, parent ÍSTARF21 group with full ancestor chain, and
+        counts of essential/optional skills.
+
+        **Answers questions like:**
+        - "Tell me everything about the *hjúkrunarfræðingur* role."
+        - "What category does this ESCO role fit into in the Icelandic classification?"
+        - "How many skills does this role have (without fetching them all)?"
+        - "What alternative labels / aliases exist for this occupation?"
+      parameters:
+        - $ref: "#/components/parameters/EscoUuid"
+      responses:
+        "200":
+          description: ESCO occupation detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EscoOccupationDetail" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/esco-occupations/{uuid}/skills:
+    get:
+      tags: [ESCO]
+      summary: Skills for this ESCO occupation
+      description: |
+        Paginated list of skills required by one specific ESCO occupation.
+
+        **Answers questions like:**
+        - "What skills does a *hjúkrunarfræðingur* actually need?"
+        - "Show me only the essential skills for this role." → `?relation_type=essential`
+        - "I want all ~90 skills for this role, paginated." → iterate with `page`
+        - Precision-oriented alternative to `/occupations/{code}/skills`, which unions across the whole group.
+      parameters:
+        - $ref: "#/components/parameters/EscoUuid"
+        - in: query
+          name: relation_type
+          schema: { type: string, enum: [essential, optional] }
+        - in: query
+          name: skill_type
+          schema: { type: string, enum: ["skill/competence", "knowledge"] }
+        - in: query
+          name: page
+          schema: { type: integer, default: 1, minimum: 1 }
+        - in: query
+          name: page_size
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        "200":
+          description: Paginated skills
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SkillsResponse" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/skills:
+    get:
+      tags: [Skills]
+      summary: List / search skills
+      description: |
+        Enumerate ESCO skills. Without `q`, returns skills sorted alphabetically
+        (paginated). With `q`, returns ranked full-text matches over Icelandic labels.
+
+        **Answers questions like:**
+        - "Is *Python* in the skills database?" → `?q=Python`
+        - "List only *knowledge* skills, not competencies." → `?skill_type=knowledge`
+        - "Enumerate every skill (paginated)." → no params + paginate
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string, minLength: 2 }
+          description: Full-text query (fuzzy + wildcard).
+        - in: query
+          name: skill_type
+          schema: { type: string, enum: ["skill/competence", "knowledge"] }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, maximum: 200 }
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0 }
+      responses:
+        "200":
+          description: List of skills
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total: { type: integer }
+                  limit: { type: integer }
+                  offset: { type: integer }
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/SkillSummary" }
+
+  /api/v1/skills/{uuid}:
+    get:
+      tags: [Skills]
+      summary: Get a skill
+      description: |
+        Skill detail: label, description, type, and counts of ESCO occupations
+        that require it.
+
+        **Answers questions like:**
+        - "What is this skill and what does it actually mean?"
+        - "How many occupations require *Python* as essential vs optional?"
+        - "Is this a *competence* (doing) or *knowledge* (knowing) skill?"
+      parameters:
+        - $ref: "#/components/parameters/SkillUuid"
+      responses:
+        "200":
+          description: Skill detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conceptUri: { type: string, format: uri }
+                  uuid: { type: string }
+                  preferredLabel_is: { type: string }
+                  skillType:
+                    type: string
+                    enum: ["skill/competence", "knowledge"]
+                  description_is: { type: [string, "null"] }
+                  occupations:
+                    type: object
+                    properties:
+                      essential_count: { type: integer }
+                      optional_count: { type: integer }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/skills/{uuid}/occupations:
+    get:
+      tags: [Skills]
+      summary: Occupations requiring this skill (reverse lookup)
+      description: |
+        All ESCO occupations that have a `REQUIRES_SKILL` edge to this skill,
+        with the relation type and parent ÍSTARF21 group. Paginated.
+
+        **Answers questions like:**
+        - "Which jobs require *Python*?"
+        - "List only roles where this skill is *essential*, not optional." → `?relation_type=essential`
+        - "What career paths open up if I learn this skill?"
+        - "If I'm reskilling an employee with X skill, which roles could they fit?"
+        - The core reverse-lookup endpoint for reskilling, CV-matching, and learning-path applications.
+      parameters:
+        - $ref: "#/components/parameters/SkillUuid"
+        - in: query
+          name: relation_type
+          schema: { type: string, enum: [essential, optional] }
+        - in: query
+          name: page
+          schema: { type: integer, default: 1, minimum: 1 }
+        - in: query
+          name: page_size
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        "200":
+          description: Paginated list of ESCO occupations requiring this skill
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        uuid: { type: string }
+                        conceptUri: { type: string }
+                        preferredLabel_is: { type: string }
+                        iscoGroup: { type: string }
+                        relationType: { type: string, enum: [essential, optional] }
+                        group_code: { type: [string, "null"] }
+                        group_title: { type: [string, "null"] }
+                  total: { type: integer }
+                  page: { type: integer }
+                  page_size: { type: integer }
+                  total_pages: { type: integer }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+components:
+  parameters:
+    Code:
+      name: code
+      in: path
+      required: true
+      schema: { type: string, pattern: "^\\d{1,4}$" }
+      description: ÍSTARF21 code (1–4 digits). Length determines level.
+      examples:
+        balkur:   { value: "2",    summary: "Level 1 — Sérfræðistörf" }
+        deild:    { value: "22",   summary: "Level 2 — Sérfræðistörf í heilbrigðisgreinum" }
+        klasi:    { value: "222",  summary: "Level 3" }
+        unit:     { value: "2221", summary: "Level 4 — Sérfræðistörf við hjúkrun" }
+    EscoUuid:
+      name: uuid
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      description: |
+        UUID part of the ESCO conceptUri. The full URI has the form
+        `http://data.europa.eu/esco/occupation/<uuid>`; pass just the UUID.
+      example: "8d3e8aaa-791b-4c75-a465-f3f827028f50"
+    SkillUuid:
+      name: uuid
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      description: |
+        UUID part of the ESCO skill conceptUri. The full URI has the form
+        `http://data.europa.eu/esco/skill/<uuid>`; pass just the UUID.
+
+  responses:
+    BadRequest:
+      description: Invalid input
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              detail: { type: string }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              detail: { type: string }
+
+  schemas:
+    OccupationSummary:
+      type: object
+      required: [code, title, level]
+      properties:
+        code:   { type: string, example: "2221" }
+        title:  { type: string, example: "Sérfræðistörf við hjúkrun" }
+        level:  { type: integer, minimum: 1, maximum: 4 }
+
+    OccupationDetail:
+      type: object
+      required: [code, title, level, source_system]
+      properties:
+        code:          { type: string }
+        title:         { type: string }
+        level:         { type: integer, minimum: 1, maximum: 4 }
+        source_system: { type: string, example: "ISTARF21" }
+        parent:
+          oneOf:
+            - $ref: "#/components/schemas/OccupationSummary"
+            - type: "null"
+        description:    { type: [string, "null"] }
+        tasks:
+          description: List of tasks (ÍSTARF21 descriptions). Only populated on level-4 units; null otherwise.
+          oneOf:
+            - type: array
+              items: { type: string }
+            - type: "null"
+        example_titles:
+          oneOf:
+            - type: array
+              items: { type: string }
+            - type: "null"
+        notes:          { type: [string, "null"] }
+
+    EscoOccupationSummary:
+      type: object
+      required: [conceptUri, preferredLabel_is, iscoGroup]
+      properties:
+        conceptUri:        { type: string, format: uri }
+        preferredLabel_is: { type: string, example: "hjúkrunarfræðingur" }
+        description_is:    { type: [string, "null"] }
+        iscoGroup:         { type: string, example: "2221" }
+
+    EscoOccupationDetail:
+      type: object
+      required: [conceptUri, uuid, preferredLabel_is, iscoGroup]
+      properties:
+        conceptUri:        { type: string, format: uri }
+        uuid:              { type: string }
+        preferredLabel_is: { type: string }
+        description_is:    { type: [string, "null"] }
+        iscoGroup:         { type: string }
+        aliases:
+          type: array
+          items: { type: string }
+          description: Alternate Icelandic labels for this occupation.
+        skills:
+          type: object
+          properties:
+            essential_count: { type: integer }
+            optional_count:  { type: integer }
+        group:
+          description: Parent ÍSTARF21 group + ancestor chain. Null if the ESCO role isn't bridged.
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [code, title, level]
+              properties:
+                code:      { type: string }
+                title:     { type: string }
+                level:     { type: integer }
+                ancestors:
+                  type: array
+                  items: { $ref: "#/components/schemas/OccupationSummary" }
+
+    SkillSummary:
+      type: object
+      required: [uuid, conceptUri, preferredLabel_is, skillType]
+      properties:
+        uuid:              { type: string }
+        conceptUri:        { type: string, format: uri }
+        preferredLabel_is: { type: string }
+        skillType:
+          type: string
+          enum: ["skill/competence", "knowledge"]
+        description_is:    { type: [string, "null"] }
+
+    SkillItem:
+      type: object
+      required: [preferredLabel_is, skillType, relationType]
+      properties:
+        preferredLabel_is: { type: string }
+        skillType:
+          type: string
+          enum: ["skill/competence", "knowledge"]
+        description_is: { type: [string, "null"] }
+        relationType:
+          type: string
+          enum: [essential, optional]
+        occupation:
+          type: string
+          description: Present only on the group-level /skills endpoint — names the ESCO role requiring the skill.
+
+    SkillsResponse:
+      type: object
+      required: [items, total, page, page_size, total_pages]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/SkillItem" }
+        total:       { type: integer }
+        page:        { type: integer }
+        page_size:   { type: integer }
+        total_pages: { type: integer }
+
+    SearchResult:
+      type: object
+      required: [result_type, code, title, level, match_source]
+      properties:
+        result_type:
+          type: string
+          enum: [istarf, esco]
+          description: "`istarf` = ÍSTARF21 category/group. `esco` = ESCO occupation (role title)."
+        code:
+          type: string
+          description: ÍSTARF21 code to navigate to. For ESCO hits this is the parent group code.
+        title:  { type: string }
+        level:  { type: integer, minimum: 1, maximum: 4 }
+        match_source:
+          type: string
+          enum: [code, istarf21, esco, alias]
+        group_code:
+          type: string
+          description: Only present on ESCO results — parent ÍSTARF group code.
+        group_title:
+          type: string
+          description: Only present on ESCO results — parent ÍSTARF group title.
