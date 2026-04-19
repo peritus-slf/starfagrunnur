@@ -8,6 +8,12 @@ updates:
       # Coalesce minor/patch bumps into a single PR to reduce noise.
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # eslint-config-next still bundles an eslint-plugin-react that calls
+      # context.getFilename() — removed in ESLint 10. Hold at v9 until Next
+      # ships a v10-compatible eslint-config-next.
+      - dependency-name: eslint
+        update-types: [version-update:semver-major]
     open-pull-requests-limit: 5
 
   - package-ecosystem: github-actions
