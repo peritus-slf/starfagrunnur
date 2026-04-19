@@ -1,9 +1,12 @@
-export default function Hero() {
+import { getStats, formatCount } from "@/lib/stats";
+
+export default async function Hero() {
+  const stats = await getStats();
   const heroCards = [
-    { source: "ÍSTARF21", value: "578", label: "Starfaflokkar" },
-    { source: "ESCO", value: "3.039", label: "Starfsheiti" },
+    { source: "ÍSTARF21", value: formatCount(stats.occupation_groups.total), label: "Starfaflokkar" },
+    { source: "ESCO", value: formatCount(stats.esco_occupations.total), label: "Starfsheiti" },
     { source: "ÍSTARF21", value: "4", label: "Flokkunarstig" },
-    { source: "ESCO", value: "126k", label: "Tengingar" },
+    { source: "ESCO", value: formatCount(stats.requires_skill.total), label: "Tengingar" },
   ];
   return (
     <section
@@ -14,6 +17,7 @@ export default function Hero() {
       }}
     >
       <div className="mx-auto grid max-w-6xl gap-16 md:grid-cols-2 md:gap-20">
+        {/* Left column */}
         <div className="flex flex-col justify-center">
           <div className="mb-6 flex items-center gap-3">
             <span className="inline-block h-px w-8" style={{ background: "var(--hero-amber)" }} />
@@ -63,7 +67,9 @@ export default function Hero() {
           </div>
         </div>
 
+        {/* Right column */}
         <div className="flex flex-col justify-center gap-8">
+          {/* Quote block */}
           <blockquote className="py-2 pl-6" style={{ borderLeft: "2px solid var(--hero-amber)" }}>
             <p className="font-display text-lg italic leading-relaxed" style={{ color: "var(--hero-text-secondary)" }}>
               &bdquo;Skipulagt yfirlit yfir allar starfagreinar á Íslandi,
@@ -71,6 +77,7 @@ export default function Hero() {
             </p>
           </blockquote>
 
+          {/* Data strip */}
           <div
             className="grid grid-cols-2 gap-px"
             style={{ border: "1px solid var(--hero-border-subtle)", background: "var(--hero-border-subtle)" }}
