@@ -48,7 +48,7 @@ export default function Footer() {
             </li>
             <li>
               <a
-                href="https://github.com/peritus/starfagrunnur"
+                href="https://github.com/peritus-slf/starfagrunnur"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-text-secondary transition-colors hover:text-amber"

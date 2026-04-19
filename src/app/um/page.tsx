@@ -93,7 +93,7 @@ export default function AboutPage() {
               <p>
                 Ritstjórn, tenging og hugbúnaður er gefið út undir{" "}
                 <Link
-                  href="https://github.com/peritus/starfagrunnur/blob/main/LICENSE"
+                  href="https://github.com/peritus-slf/starfagrunnur/blob/main/LICENSE"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-amber-dim underline underline-offset-2 hover:text-amber"
