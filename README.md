@@ -2,7 +2,7 @@
 
 **An open Icelandic occupational knowledge graph, served as a read-only REST API and a browsable landing page.**
 
-[![CI](https://github.com/peritus/starfagrunnur/actions/workflows/ci.yml/badge.svg)](https://github.com/peritus/starfagrunnur/actions/workflows/ci.yml)
+[![CI](https://github.com/peritus-slf/starfagrunnur/actions/workflows/ci.yml/badge.svg)](https://github.com/peritus-slf/starfagrunnur/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 Live site: **[starfagrunnur.is](https://starfagrunnur.is)** · API: **[api.starfagrunnur.is](https://api.starfagrunnur.is)** · Docs: **[/docs](https://starfagrunnur.is/docs)**
@@ -71,7 +71,7 @@ Neo4j is an external dependency — this repo only contains the web application.
 You need a running Neo4j with the Starfagrunnur data loaded. If you have the ingestion pipeline set up:
 
 ```bash
-git clone https://github.com/peritus/starfagrunnur.git
+git clone https://github.com/peritus-slf/starfagrunnur.git
 cd starfagrunnur
 cp .env.example .env.local
 # Edit .env.local with your Neo4j connection details
