@@ -13,19 +13,19 @@
   "dependencies": {
     "neo4j-driver": "6.0.1",
     "next": "16.2.4",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
     "swagger-ui-dist": "5.32.4"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "4.1.14",
+    "@tailwindcss/postcss": "4.2.2",
     "@types/node": "20.19.25",
-    "@types/react": "19.2.6",
-    "@types/react-dom": "19.2.2",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
     "eslint": "9.38.0",
     "eslint-config-next": "16.2.4",
-    "tailwindcss": "4.1.14",
+    "tailwindcss": "4.2.2",
     "typescript": "5.9.3",
-    "vitest": "4.0.5"
+    "vitest": "4.1.4"
   }
 }
