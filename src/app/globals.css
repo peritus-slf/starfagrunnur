@@ -1,0 +1,151 @@
+@import "tailwindcss";
+
+/* === LIGHT MODE (default) === */
+:root,
+[data-theme="light"] {
+  --surface-base: #faf8f5;
+  --surface-raised: #ffffff;
+  --surface-overlay: #f3f0eb;
+  --surface-elevated: #eae6df;
+
+  --border-faint: rgba(60, 50, 30, 0.06);
+  --border-subtle: rgba(60, 50, 30, 0.12);
+  --border-default: rgba(60, 50, 30, 0.20);
+
+  --text-primary: #2a2a2e;
+  --text-secondary: #5c5647;
+  --text-tertiary: #8a8272;
+
+  --text-accent: #b8942e;
+  --amber: #b8942e;
+  --amber-dim: #9a7a20;
+  --amber-bright: #c9a84c;
+
+  --navy: #1a1b2e;
+  --teal: #2a6e68;
+  --teal-bright: #3a8a82;
+
+  /* Hero stays dark in light mode */
+  --hero-bg: #1a1b2e;
+  --hero-text: #e8e4d8;
+  --hero-text-secondary: #a09880;
+  --hero-text-tertiary: #635d50;
+  --hero-amber: #c9a84c;
+  --hero-amber-dim: #8a6d2a;
+  --hero-border-subtle: rgba(200, 185, 150, 0.12);
+  --hero-surface-raised: #1f2025;
+}
+
+/* === DARK MODE === */
+[data-theme="dark"] {
+  --surface-base: #1a1b1e;
+  --surface-raised: #1f2025;
+  --surface-overlay: #25272e;
+  --surface-elevated: #2c2e36;
+
+  --border-faint: rgba(200, 185, 150, 0.07);
+  --border-subtle: rgba(200, 185, 150, 0.12);
+  --border-default: rgba(200, 185, 150, 0.22);
+
+  --text-primary: #e8e4d8;
+  --text-secondary: #a09880;
+  --text-tertiary: #635d50;
+
+  --text-accent: #c9a84c;
+  --amber: #c9a84c;
+  --amber-dim: #8a6d2a;
+  --amber-bright: #e3c56a;
+
+  --navy: #1e2640;
+  --teal: #3a7f7a;
+  --teal-bright: #4fa8a2;
+
+  --hero-bg: var(--surface-base);
+  --hero-text: var(--text-primary);
+  --hero-text-secondary: var(--text-secondary);
+  --hero-text-tertiary: var(--text-tertiary);
+  --hero-amber: var(--amber);
+  --hero-amber-dim: var(--amber-dim);
+  --hero-border-subtle: var(--border-subtle);
+  --hero-surface-raised: var(--surface-raised);
+}
+
+@theme inline {
+  --color-surface-base: var(--surface-base);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-overlay: var(--surface-overlay);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-border-faint: var(--border-faint);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-accent: var(--text-accent);
+  --color-amber: var(--amber);
+  --color-amber-dim: var(--amber-dim);
+  --color-amber-bright: var(--amber-bright);
+  --color-navy: var(--navy);
+  --color-teal: var(--teal);
+  --color-teal-bright: var(--teal-bright);
+  --font-display: var(--font-playfair);
+  --font-body: var(--font-source-serif);
+  --font-mono: var(--font-dm-mono);
+}
+
+* {
+  border-radius: 0 !important;
+}
+
+body {
+  background-color: var(--surface-base);
+  color: var(--text-primary);
+  font-family: var(--font-body), Georgia, serif;
+}
+
+/* Mono label utility */
+.label {
+  font-family: var(--font-mono), "Courier New", monospace;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-secondary);
+}
+
+.label-sm {
+  font-family: var(--font-mono), "Courier New", monospace;
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--text-tertiary);
+}
+
+/* Ruled line divider */
+.divider {
+  border: none;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-base);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+/* Selection */
+::selection {
+  background: rgba(201, 168, 76, 0.25);
+  color: var(--text-primary);
+}
