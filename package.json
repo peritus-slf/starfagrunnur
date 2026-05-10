@@ -13,20 +13,20 @@
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
     "neo4j-driver": "6.0.1",
-    "next": "16.2.4",
-    "react": "19.2.5",
-    "react-dom": "19.2.5",
-    "swagger-ui-dist": "5.32.4"
+    "next": "16.2.6",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "swagger-ui-dist": "5.32.5"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "4.2.2",
-    "@types/node": "25.6.0",
+    "@tailwindcss/postcss": "4.3.0",
+    "@types/node": "25.6.2",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "eslint": "9.38.0",
-    "eslint-config-next": "16.2.4",
-    "tailwindcss": "4.2.2",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.2.6",
+    "tailwindcss": "4.3.0",
     "typescript": "6.0.3",
-    "vitest": "4.1.4"
+    "vitest": "4.1.5"
   }
 }
