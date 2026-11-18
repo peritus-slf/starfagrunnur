@@ -19,6 +19,14 @@ export function getDriver(): Driver {
     _driver = neo4j.driver(uri, neo4j.auth.basic(user, password), {
       maxConnectionPoolSize: 10,
       connectionAcquisitionTimeout: 5000,
+      // The function is frozen between requests, so pooled sockets can be
+      // dead when it wakes. Retire connections early, ping any that sat idle
+      // before reusing them, and fail a stuck TLS handshake fast so the
+      // transaction retry below gets a chance.
+      maxConnectionLifetime: 5 * 60 * 1000,
+      connectionLivenessCheckTimeout: 30 * 1000,
+      connectionTimeout: 10 * 1000,
+      maxTransactionRetryTime: 10 * 1000,
     });
   }
   return _driver;
@@ -31,7 +39,9 @@ export async function runQuery<T = Record<string, unknown>>(
   const driver = getDriver();
   const session = driver.session({ defaultAccessMode: neo4j.session.READ });
   try {
-    const result = await session.run(cypher, params);
+    // executeRead retries transient failures (ServiceUnavailable,
+    // SessionExpired) and rediscovers the cluster; session.run() does not.
+    const result = await session.executeRead((tx) => tx.run(cypher, params));
     return result.records.map((record) => {
       const obj: Record<string, unknown> = {};
       for (const key of record.keys as string[]) {
